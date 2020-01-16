@@ -723,7 +723,7 @@ void ADUVC::newFrameCallbackWrapper(uvc_frame_t* frame, void* ptr){
  * @params[in]:  imBytes     -> number of bytes in the image
  * @return: void, but output into pArray
  */
-asynStatus ADUVC::uvc2NDArray(uvc_frame_t* frame, NDArray* pArray, NDDataType_t dataType, NDColorMode_t colorMode, size_t imBytes){
+asynStatus ADUVC::uvc2NDArray(uvc_frame_t* frame, NDArray** ppArray, NDDataType_t dataType, NDColorMode_t colorMode, size_t imBytes){
     static const char* functionName = "uvc2NDArray";
     asynStatus status = asynSuccess;
     // if data is grayscale, we do not need to convert it, we just copy over the data.
@@ -733,8 +733,8 @@ asynStatus ADUVC::uvc2NDArray(uvc_frame_t* frame, NDArray* pArray, NDDataType_t 
             status = asynError;
         }
         else{
-            if(dataType == NDUInt8 || dataType == NDInt8) memcpy((unsigned char*) pArray->pData,(unsigned char*) frame->data, imBytes);
-            else memcpy((uint16_t*) pArray->pData, (uint16_t*) frame->data, imBytes);
+            if(dataType == NDUInt8 || dataType == NDInt8) memcpy((unsigned char*) (*ppArray)->pData,(unsigned char*) frame->data, imBytes);
+            else memcpy((uint16_t*) (*ppArray)->pData, (uint16_t*) frame->data, imBytes);
         }
     }
     //otherwise we need to convert to a common type (rgb)
@@ -777,32 +777,13 @@ asynStatus ADUVC::uvc2NDArray(uvc_frame_t* frame, NDArray* pArray, NDDataType_t 
                         status = asynError;
                     }
                     else{
-                        memcpy(pArray->pData, rgb->data, imBytes);
+                        memcpy((*ppArray)->pData, rgb->data, imBytes);
                     }
                 }
                 uvc_free_frame(rgb);
             }
         }
     }
-    // only push image if the data transfer was successful
-    if(status == asynSuccess){
-        //pArray->pAttributeList->add("DataType", "Data Type", NDAttrInt32, &dataType);
-        pArray->pAttributeList->add("ColorMode", "Color Mode", NDAttrInt32, &colorMode);
-        //increment the array counter
-        int arrayCounter;
-        getIntegerParam(NDArrayCounter, &arrayCounter);
-        arrayCounter++;
-        setIntegerParam(NDArrayCounter, arrayCounter);
-        //refresh PVs
-        callParamCallbacks();
-        //Sends image to the ArrayDataPV
-        getAttributes(pArray->pAttributeList);
-        doCallbacksGenericPointer(pArray, NDArrayData, 0);
-        //frees up memory
-    }
-    
-    // Always free array whether successful or not
-    pArray->release();
     return status;
 }
 
@@ -876,7 +857,27 @@ void ADUVC::newFrameCallback(uvc_frame_t* frame, void* ptr){
     numImages++;
     setIntegerParam(ADNumImagesCounter, numImages);
     pArray->uniqueId = numImages;
-    uvc2NDArray(frame, pArray, (NDDataType_t) dataType, (NDColorMode_t) colorMode, arrayInfo.totalBytes);
+    asynStatus status = uvc2NDArray(frame, &pArray, (NDDataType_t) dataType, (NDColorMode_t) colorMode, arrayInfo.totalBytes);
+
+    // only push image if the data transfer was successful
+    if(status == asynSuccess){
+        //pArray->pAttributeList->add("DataType", "Data Type", NDAttrInt32, &dataType);
+        pArray->pAttributeList->add("ColorMode", "Color Mode", NDAttrInt32, &colorMode);
+        //increment the array counter
+        int arrayCounter;
+        getIntegerParam(NDArrayCounter, &arrayCounter);
+        arrayCounter++;
+        setIntegerParam(NDArrayCounter, arrayCounter);
+        //refresh PVs
+        callParamCallbacks();
+        //Sends image to the ArrayDataPV
+        getAttributes(pArray->pAttributeList);
+        doCallbacksGenericPointer(pArray, NDArrayData, 0);
+        //frees up memory
+    }
+    
+    // Always free array whether successful or not
+    pArray->release();
 
     //single shot mode stops after one images
     if(operatingMode == ADImageSingle){

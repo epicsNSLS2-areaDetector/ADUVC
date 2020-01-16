@@ -234,7 +234,7 @@ class ADUVC : ADDriver{
         void acquireStop();
 
         //function that converts a UVC frame into an NDArray
-        asynStatus uvc2NDArray(uvc_frame_t* frame, NDArray* pArray, NDDataType_t dataType, NDColorMode_t colorMode, size_t imBytes);
+        asynStatus uvc2NDArray(uvc_frame_t* frame, NDArray** ppArray, NDDataType_t dataType, NDColorMode_t colorMode, size_t imBytes);
 
         // function that attempts to fit data type + color mode to frame if size doesn't match
         void checkValidFrameSize(uvc_frame_t* frame);
